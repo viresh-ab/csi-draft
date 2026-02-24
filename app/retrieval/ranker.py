@@ -9,6 +9,7 @@ FIELD_WEIGHTS = {
     "tags":            0.15,   # CSV column is 'tags' (not 'keywords')
     "year":            0.05,
     "client_category": 0.10,   # CSV column is 'client_category' (not 'client_type')
+    "sample_size":     0.15,
 }
 
 
