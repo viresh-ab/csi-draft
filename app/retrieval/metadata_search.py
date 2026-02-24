@@ -1,3 +1,4 @@
+import re
 import pandas as pd
 from app.core.config import METADATA_PATH
 from app.retrieval.ranker import rank_candidates
@@ -9,6 +10,8 @@ BROWSE_ALL_PHRASES = (
     "list all",
     "show all",
     "all studies",
+    "fetch all",
+    "get all",
 )
 
 # Maps intent classifier filter keys → actual CSV column names
@@ -19,8 +22,14 @@ FILTER_COLUMN_MAP = {
     "keywords":    "tags",          # intent says 'keywords', CSV has 'tags'
     "tags":        "tags",
     "year":        "year",
+    "region":      "geography",
+    "location":    "geography",
+    "country":     "geography",
     "client_type": "client_category",  # intent says 'client_type', CSV has 'client_category'
+    "category":    "client_category",
     "client_category": "client_category",
+    "sample_size": "sample_size",
+    "sample_sizes": "sample_size",
     "study_type":  "study_type",
     "summary":     "summary",
 }
@@ -45,6 +54,34 @@ def _is_browse_all_query(user_query: str | None) -> bool:
     return any(phrase in query for phrase in BROWSE_ALL_PHRASES)
 
 
+def _infer_filters_from_query(df: pd.DataFrame, user_query: str | None) -> dict:
+    """Fallback extraction for common fields when LLM returns weak/empty filters."""
+    if not user_query:
+        return {}
+
+    query = str(user_query).lower()
+    inferred = {}
+
+    year_match = re.search(r"\b(19|20)\d{2}\b", query)
+    if year_match:
+        inferred["year"] = year_match.group(0)
+
+    sample_match = re.search(r"(?:sample\s*size|n\s*=?)\s*(\d+)", query)
+    if sample_match:
+        inferred["sample_size"] = sample_match.group(1)
+
+    for col in ["industry", "geography", "client_category", "methodology", "study_type"]:
+        if col not in df.columns:
+            continue
+        values = sorted({str(v).strip() for v in df[col].dropna().tolist() if str(v).strip()})
+        for value in values:
+            if value.lower() in query:
+                inferred[col] = value
+                break
+
+    return inferred
+
+
 def search_metadata(filters: dict, top_k: int = 3, user_query: str | None = None) -> list[dict]:
     """
     Retrieves and ranks case study candidates from the CSV.
@@ -58,8 +95,11 @@ def search_metadata(filters: dict, top_k: int = 3, user_query: str | None = None
     # For no-filter queries, only return results for explicit browse-all intents.
     if not filters:
         if _is_browse_all_query(user_query):
-            return df.head(top_k).to_dict(orient="records")
-        return []
+            return df.to_dict(orient="records")
+
+        filters = _infer_filters_from_query(df, user_query)
+        if not filters:
+            return []
 
     scores = pd.Series([0] * len(df), dtype=int)
 
@@ -70,7 +110,7 @@ def search_metadata(filters: dict, top_k: int = 3, user_query: str | None = None
         if value and col in df.columns:
             mapped_filters[col] = value
             match = df[col].astype(str).str.lower().str.contains(
-                str(value).lower(), na=False
+                str(value).lower(), na=False, regex=False
             )
             scores += match.astype(int)
 
