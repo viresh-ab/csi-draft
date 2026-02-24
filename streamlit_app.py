@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 st.set_page_config(
     page_title="CSI Engine",
     page_icon="🔍",
-    layout="wide",
+    layout="centered",
     initial_sidebar_state="expanded"
 )
 
@@ -25,6 +25,7 @@ st.markdown("""
 
 html, body, [class*="css"]  { font-family: 'Inter', sans-serif; }
 .stApp                       { background-color: #0f0f13; color: #e8e6e0; }
+.main .block-container        { max-width: 860px; padding-top: 1.4rem; }
 section[data-testid="stSidebar"] { background-color: #16161d; border-right: 1px solid #2a2a35; }
 
 .csi-header  { font-family:'Syne',sans-serif; font-size:2.2rem; font-weight:800;
@@ -40,15 +41,18 @@ section[data-testid="stSidebar"] { background-color: #16161d; border-right: 1px 
     border-color:#c8a97e !important;
     box-shadow:0 0 0 2px rgba(200,169,126,0.15) !important; }
 
-.stButton > button {
-    background-color:#c8a97e !important; color:#0f0f13 !important;
-    border:none !important; border-radius:6px !important;
-    font-family:'Syne',sans-serif !important; font-weight:700 !important;
-    font-size:0.88rem !important; letter-spacing:0.05em !important;
-    padding:0.6rem 1.8rem !important; text-transform:uppercase; }
+ .stButton > button {
+    background-color:#202330 !important; color:#d9dce8 !important;
+    border:1px solid #303546 !important; border-radius:999px !important;
+    font-family:'Inter',sans-serif !important; font-weight:500 !important;
+    font-size:0.82rem !important; letter-spacing:0.01em !important;
+    padding:0.35rem 0.9rem !important; text-transform:none !important; }
 .stButton > button:hover {
-    background-color:#d9bc94 !important;
-    box-shadow:0 4px 16px rgba(200,169,126,0.3) !important; }
+    background-color:#2b3042 !important;
+    border-color:#4b5168 !important; }
+
+div[data-testid="stChatMessage"] { border-radius:14px; }
+[data-testid="stChatInput"] { position: sticky; bottom: 0; padding-top: 0.7rem; background:#0f0f13; }
 
 .result-card  { background:#1a1a24; border:1px solid #2a2a35;
                 border-radius:10px; padding:1.4rem 1.6rem; margin-bottom:1rem; }
@@ -173,205 +177,183 @@ with st.sidebar:
     st.markdown('<div style="font-size:0.68rem;color:#3a3a4a;text-align:center;">CSI Engine v1.0</div>', unsafe_allow_html=True)
 
 # ── Main ──────────────────────────────────────────────────────────────────────
-main_col, _ = st.columns([3, 1])
+st.markdown('<div class="csi-header">Case Study Intelligence</div>', unsafe_allow_html=True)
+st.markdown('<div class="csi-tagline">Retrieve · Analyse · Generate</div>', unsafe_allow_html=True)
 
-with main_col:
-    st.markdown('<div class="csi-header">Case Study Intelligence</div>', unsafe_allow_html=True)
-    st.markdown('<div class="csi-tagline">Retrieve · Analyse · Generate</div>', unsafe_allow_html=True)
+st.markdown("**Try an example:**")
+c1, c2, c3 = st.columns(3)
+with c1:
+    if st.button("Healthcare in Canada", use_container_width=True):
+        st.session_state.query_text = "Show me Healthcare case studies from Canada"
+        st.rerun()
+with c2:
+    if st.button("LinkedIn from Electronics", use_container_width=True):
+        st.session_state.query_text = "Write a LinkedIn post about our Electronics research in India"
+        st.rerun()
+with c3:
+    if st.button("Blog from Retail", use_container_width=True):
+        st.session_state.query_text = "Write a blog post based on our retail customer satisfaction study"
+        st.rerun()
 
-    # Example buttons
-    st.markdown("**Try an example:**")
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        if st.button("🔍  Healthcare studies — Canada", use_container_width=True):
-            st.session_state.query_text = "Show me Healthcare case studies from Canada"
-            st.rerun()
-    with c2:
-        if st.button("✍️  LinkedIn post — Electronics", use_container_width=True):
-            st.session_state.query_text = "Write a LinkedIn post about our Electronics research in India"
-            st.rerun()
-    with c3:
-        if st.button("📝  Blog post — Retail", use_container_width=True):
-            st.session_state.query_text = "Write a blog post based on our retail customer satisfaction study"
-            st.rerun()
+query = st.chat_input("Ask for case studies or generated content…")
+if not query:
+    query = st.session_state.query_text
+    st.session_state.query_text = ""
 
-    st.markdown("")
+# ── Execute ───────────────────────────────────────────────────────────────
+if query:
+    if not get_openai_key() and not os.environ.get("OPENAI_API_KEY"):
+        st.error("Please enter your OpenAI API key in the sidebar first.")
+    elif not query.strip():
+        st.warning("Please enter a query first.")
+    else:
+        st.session_state.chat_turns.append({"role": "user", "query": query})
+        classify_intent, search_metadata, load_from_file_path, generate_content = load_modules()
 
-    # Query input
-    query = st.text_area(
-        label="Query",
-        value=st.session_state.query_text,
-        placeholder=(
-            "Ask anything — retrieve case studies or generate content from them...\n\n"
-            "Examples:\n"
-            "• Show me Healthcare case studies from Canada\n"
-            "• Write a LinkedIn post about our Electronics research in India\n"
-            "• Draft a cold email based on our Retail mystery shopping study\n"
-            "• Create an executive summary of our HNI brand study in India\n"
-            "• Write a blog post about our Travel loyalty research in Europe"
-        ),
-        height=160,
-        label_visibility="collapsed"
-    )
-
-    btn_col, _ = st.columns([1, 5])
-    with btn_col:
-        run = st.button("Run Query →", use_container_width=True)
-
-    # ── Execute ───────────────────────────────────────────────────────────────
-    if run:
-        if not get_openai_key() and not os.environ.get("OPENAI_API_KEY"):
-            st.error("Please enter your OpenAI API key in the sidebar first.")
-        elif not query.strip():
-            st.warning("Please enter a query first.")
+        if not classify_intent:
+            st.error("Could not load backend — check your OpenAI API key.")
         else:
-            st.session_state.chat_turns.append({"role": "user", "query": query})
-            classify_intent, search_metadata, load_from_file_path, generate_content = load_modules()
+            with st.spinner("Thinking..."):
+                try:
+                    # Step 1: Intent + filters
+                    intent_data = classify_intent(query)
+                    intent = intent_data.get("intent", "retrieve")
+                    content_format = intent_data.get("content_format")
+                    filters = intent_data.get("filters", {})
 
-            if not classify_intent:
-                st.error("Could not load backend — check your OpenAI API key.")
-            else:
-                with st.spinner("Thinking..."):
-                    try:
-                        # Step 1: Intent + filters
-                        intent_data    = classify_intent(query)
-                        intent         = intent_data.get("intent", "retrieve")
-                        content_format = intent_data.get("content_format")
-                        filters        = intent_data.get("filters", {})
+                    # Step 2: Retrieve from metadata
+                    matches = search_metadata(filters, user_query=query)
 
-                        # Step 2: Retrieve from metadata
-                        matches = search_metadata(filters, user_query=query)
+                    if not matches:
+                        st.session_state.chat_turns.append({
+                            "role": "assistant",
+                            "intent": intent,
+                            "content_format": content_format,
+                            "warning": "No matching case studies found. Try broader terms.",
+                            "matches": [],
+                            "generated": None,
+                        })
+                    else:
+                        top_match = matches[0]
+                        csv_file_path = str(top_match.get("file_path", ""))
 
-                        if not matches:
-                            st.session_state.chat_turns.append({
-                                "role": "assistant",
-                                "intent": intent,
-                                "content_format": content_format,
-                                "warning": "No matching case studies found. Try broader terms.",
-                                "matches": [],
-                                "generated": None,
-                            })
-                        else:
-                            top_match      = matches[0]
-                            csv_file_path  = str(top_match.get("file_path", ""))
+                        # Step 3: Load document
+                        doc = load_from_file_path(csv_file_path)
 
-                            # Step 3: Load document
-                            doc = load_from_file_path(csv_file_path)
-
-                            # Step 4: Generate if needed
-                            generated = None
-                            if intent == "generate" and content_format:
-                                generated = generate_content(
-                                    case_study_text=doc["content"],
-                                    content_format=content_format,
-                                    user_query=query
-                                )
-
-                            # Save history
-                            st.session_state.history.append({"query": query, "intent": intent})
-                            st.session_state.chat_turns.append({
-                                "role": "assistant",
-                                "intent": intent,
-                                "content_format": content_format,
-                                "warning": None,
-                                "matches": matches,
-                                "generated": generated,
-                            })
-
-                    except FileNotFoundError as e:
-                        st.error(f"File not found: {e}")
-                    except Exception as e:
-                        st.error(f"Error: {e}")
-                        st.exception(e)
-
-    # Chat-style transcript
-    st.markdown("---")
-    st.markdown('<div class="section-label">Conversation</div>', unsafe_allow_html=True)
-
-    for idx, turn in enumerate(st.session_state.chat_turns):
-        if turn.get("role") == "user":
-            with st.chat_message("user"):
-                st.markdown(turn.get("query", ""))
-            continue
-
-        with st.chat_message("assistant"):
-            intent = turn.get("intent", "retrieve")
-            content_format = turn.get("content_format")
-            matches = turn.get("matches", [])
-            generated = turn.get("generated")
-            warning = turn.get("warning")
-
-            if intent == "generate":
-                st.markdown(
-                    f'<div class="intent-generate">✦ Generate &nbsp;·&nbsp; {content_format or "Content"}</div>',
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.markdown('<div class="intent-retrieve">✦ Retrieve</div>', unsafe_allow_html=True)
-
-            if warning:
-                st.warning(warning)
-                continue
-
-            st.markdown('<div class="section-label">Matched Case Studies</div>', unsafe_allow_html=True)
-
-            for m_idx, match in enumerate(matches):
-                meta = match
-                file_name = str(meta.get("file_name", "Untitled Study"))
-                industry = meta.get("industry", "—")
-                geography = meta.get("geography", "")
-                methodology = meta.get("methodology", "")
-                sample_size = meta.get("sample_size", "")
-                year = meta.get("year", "")
-                score = float(meta.get("_rank_score", 0))
-                summary = meta.get("summary", "")
-                file_path = str(meta.get("file_path", ""))
-
-                geo_tag = f'<span class="meta-tag">📍 {geography}</span>' if geography and str(geography) != "nan" else ""
-                meth_tag = f'<span class="meta-tag">🔬 {methodology}</span>' if methodology and str(methodology) != "nan" else ""
-                size_tag = f'<span class="meta-tag">👥 n={sample_size}</span>' if sample_size and str(sample_size) not in ["", "nan"] else ""
-                year_tag = f'<span class="meta-tag">📅 {int(float(year))}</span>' if year and str(year) != "nan" else ""
-
-                st.markdown(f"""
-                    <div class="result-card">
-                        <div class="result-title">{file_name}</div>
-                        <div>
-                            <span class="meta-tag">🏭 {industry}</span>
-                            {geo_tag}{meth_tag}{size_tag}{year_tag}
-                            <span class="score-badge">score {score:.2f}</span>
-                        </div>
-                        <div class="file-path">{file_path}</div>
-                    </div>
-                """, unsafe_allow_html=True)
-
-                if file_path and file_path != "nan":
-                    candidate_path = Path(file_path)
-                    if not candidate_path.is_absolute():
-                        candidate_path = Path.cwd() / candidate_path
-                    if candidate_path.exists():
-                        with open(candidate_path, "rb") as fh:
-                            st.download_button(
-                                label=f"⬇ Download file: {file_name}",
-                                data=fh.read(),
-                                file_name=file_name,
-                                mime="application/octet-stream",
-                                key=f"download_{idx}_{m_idx}",
+                        # Step 4: Generate if needed
+                        generated = None
+                        if intent == "generate" and content_format:
+                            generated = generate_content(
+                                case_study_text=doc["content"],
+                                content_format=content_format,
+                                user_query=query
                             )
 
-                if summary and str(summary) not in ["", "nan"]:
-                    with st.expander("View summary"):
-                        st.markdown(
-                            f"<div style='font-size:0.88rem;color:#a0a0b0;line-height:1.7;'>{summary}</div>",
-                            unsafe_allow_html=True,
+                        # Save history
+                        st.session_state.history.append({"query": query, "intent": intent})
+                        st.session_state.chat_turns.append({
+                            "role": "assistant",
+                            "intent": intent,
+                            "content_format": content_format,
+                            "warning": None,
+                            "matches": matches,
+                            "generated": generated,
+                        })
+
+                except FileNotFoundError as e:
+                    st.error(f"File not found: {e}")
+                except Exception as e:
+                    st.error(f"Error: {e}")
+                    st.exception(e)
+
+# Chat-style transcript
+st.markdown("---")
+st.markdown('<div class="section-label">Conversation</div>', unsafe_allow_html=True)
+
+for idx, turn in enumerate(st.session_state.chat_turns):
+    if turn.get("role") == "user":
+        with st.chat_message("user"):
+            st.markdown(turn.get("query", ""))
+        continue
+
+    with st.chat_message("assistant"):
+        intent = turn.get("intent", "retrieve")
+        content_format = turn.get("content_format")
+        matches = turn.get("matches", [])
+        generated = turn.get("generated")
+        warning = turn.get("warning")
+
+        if intent == "generate":
+            st.markdown(
+                f'<div class="intent-generate">✦ Generate &nbsp;·&nbsp; {content_format or "Content"}</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown('<div class="intent-retrieve">✦ Retrieve</div>', unsafe_allow_html=True)
+
+        if warning:
+            st.warning(warning)
+            continue
+
+        st.markdown('<div class="section-label">Matched Case Studies</div>', unsafe_allow_html=True)
+
+        for m_idx, match in enumerate(matches):
+            meta = match
+            file_name = str(meta.get("file_name", "Untitled Study"))
+            industry = meta.get("industry", "—")
+            geography = meta.get("geography", "")
+            methodology = meta.get("methodology", "")
+            sample_size = meta.get("sample_size", "")
+            year = meta.get("year", "")
+            score = float(meta.get("_rank_score", 0))
+            summary = meta.get("summary", "")
+            file_path = str(meta.get("file_path", ""))
+
+            geo_tag = f'<span class="meta-tag">📍 {geography}</span>' if geography and str(geography) != "nan" else ""
+            meth_tag = f'<span class="meta-tag">🔬 {methodology}</span>' if methodology and str(methodology) != "nan" else ""
+            size_tag = f'<span class="meta-tag">👥 n={sample_size}</span>' if sample_size and str(sample_size) not in ["", "nan"] else ""
+            year_tag = f'<span class="meta-tag">📅 {int(float(year))}</span>' if year and str(year) != "nan" else ""
+
+            st.markdown(f"""
+                <div class="result-card">
+                    <div class="result-title">{file_name}</div>
+                    <div>
+                        <span class="meta-tag">🏭 {industry}</span>
+                        {geo_tag}{meth_tag}{size_tag}{year_tag}
+                        <span class="score-badge">score {score:.2f}</span>
+                    </div>
+                    <div class="file-path">{file_path}</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+            if file_path and file_path != "nan":
+                candidate_path = Path(file_path)
+                if not candidate_path.is_absolute():
+                    candidate_path = Path.cwd() / candidate_path
+                if candidate_path.exists():
+                    with open(candidate_path, "rb") as fh:
+                        st.download_button(
+                            label=f"⬇ Download file: {file_name}",
+                            data=fh.read(),
+                            file_name=file_name,
+                            mime="application/octet-stream",
+                            key=f"download_{idx}_{m_idx}",
                         )
 
-            if generated:
-                st.markdown('<div class="section-label">Generated Content</div>', unsafe_allow_html=True)
-                st.markdown(f'<div class="generated-box">{generated}</div>', unsafe_allow_html=True)
-                st.download_button(
-                    label="⬇ Download generated text",
-                    data=generated,
-                    file_name=f"{(content_format or 'output').replace(' ', '_')}.txt",
-                    mime="text/plain",
-                    key=f"generated_{idx}",
-                )
+            if summary and str(summary) not in ["", "nan"]:
+                with st.expander("View summary"):
+                    st.markdown(
+                        f"<div style='font-size:0.88rem;color:#a0a0b0;line-height:1.7;'>{summary}</div>",
+                        unsafe_allow_html=True,
+                    )
+
+        if generated:
+            st.markdown('<div class="section-label">Generated Content</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="generated-box">{generated}</div>', unsafe_allow_html=True)
+            st.download_button(
+                label="⬇ Download generated text",
+                data=generated,
+                file_name=f"{(content_format or 'output').replace(' ', '_')}.txt",
+                mime="text/plain",
+                key=f"generated_{idx}",
+            )

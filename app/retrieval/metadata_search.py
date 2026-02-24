@@ -70,6 +70,8 @@ def _infer_filters_from_query(df: pd.DataFrame, user_query: str | None) -> dict:
     sample_match = re.search(r"(?:sample\s*size|n\s*=?)\s*(\d+)", query)
     if sample_match:
         inferred["sample_size"] = sample_match.group(1)
+    elif re.search(r"\b(high|higher|large|larger)\s+sample\s+size\b", query):
+        inferred["sample_size"] = "high"
 
     for col in ["industry", "geography", "client_category", "methodology", "study_type"]:
         if col not in df.columns:
@@ -92,11 +94,43 @@ def _infer_filters_from_query(df: pd.DataFrame, user_query: str | None) -> dict:
     return inferred
 
 
-def _build_match_series(df: pd.DataFrame, col: str, value: str) -> pd.Series:
+def _build_sample_size_match_series(df: pd.DataFrame, value: str, user_query: str | None = None) -> pd.Series:
+    """Comparator-aware matching for sample_size (e.g., '>500', 'high sample size')."""
+    normalized = str(value).strip().lower()
+    numeric = pd.to_numeric(df["sample_size"], errors="coerce")
+
+    comparison_text = f"{normalized} {str(user_query or '').lower()}"
+
+    if re.search(r"\b(high|higher|large|larger)\b", comparison_text):
+        threshold = numeric.quantile(0.75)
+        if pd.notna(threshold):
+            return numeric.ge(threshold).fillna(False)
+
+    comparator_match = re.search(r"(>=|<=|>|<|=)?\s*(\d+)", normalized)
+    if comparator_match:
+        op = comparator_match.group(1) or "="
+        target = float(comparator_match.group(2))
+        if op == ">":
+            return numeric.gt(target).fillna(False)
+        if op == ">=":
+            return numeric.ge(target).fillna(False)
+        if op == "<":
+            return numeric.lt(target).fillna(False)
+        if op == "<=":
+            return numeric.le(target).fillna(False)
+        return numeric.eq(target).fillna(False)
+
+    return df["sample_size"].astype(str).str.lower().str.contains(normalized, na=False, regex=False)
+
+
+def _build_match_series(df: pd.DataFrame, col: str, value: str, user_query: str | None = None) -> pd.Series:
     """Column-aware matching for better precision on numeric fields."""
     normalized = str(value).strip().lower()
 
-    if col in {"year", "sample_size"}:
+    if col == "sample_size":
+        return _build_sample_size_match_series(df, value, user_query=user_query)
+
+    if col == "year":
         numeric = pd.to_numeric(df[col], errors="coerce")
         try:
             target = float(normalized)
@@ -134,7 +168,7 @@ def search_metadata(filters: dict, top_k: int = 3, user_query: str | None = None
         col = FILTER_COLUMN_MAP.get(key, key)
         if value and col in df.columns:
             mapped_filters[col] = value
-            match = _build_match_series(df, col, str(value))
+            match = _build_match_series(df, col, str(value), user_query=user_query)
             scores += match.astype(int)
 
     df["_score"] = scores
