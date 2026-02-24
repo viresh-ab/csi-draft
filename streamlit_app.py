@@ -27,6 +27,14 @@ html, body, [class*="css"]  { font-family: 'Inter', sans-serif; }
 .stApp                       { background-color: #0f0f13; color: #e8e6e0; }
 .main .block-container        { max-width: 860px; padding-top: 1.4rem; }
 section[data-testid="stSidebar"] { background-color: #16161d; border-right: 1px solid #2a2a35; }
+[data-testid="stHeader"] { background: transparent; }
+[data-testid="stToolbar"] { right: 1rem; }
+[data-testid="stAppViewBlockContainer"] { padding-bottom: 7rem; }
+[data-testid="stBottomBlockContainer"] {
+    background: #0f0f13 !important;
+    border-top: 1px solid #272a38;
+    padding-top: 0.65rem;
+}
 
 .csi-header  { font-family:'Syne',sans-serif; font-size:2.2rem; font-weight:800;
                color:#f0ede6; letter-spacing:-0.03em; line-height:1.1; margin-bottom:0.2rem; }
@@ -52,7 +60,26 @@ section[data-testid="stSidebar"] { background-color: #16161d; border-right: 1px 
     border-color:#4b5168 !important; }
 
 div[data-testid="stChatMessage"] { border-radius:14px; }
-[data-testid="stChatInput"] { position: sticky; bottom: 0; padding-top: 0.7rem; background:#0f0f13; }
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] p { line-height: 1.55; }
+[data-testid="stChatInput"] { background:#0f0f13; }
+[data-testid="stChatInput"] textarea {
+    background:#1a1d29 !important;
+    border:1px solid #343a4f !important;
+    color:#e8e6e0 !important;
+    border-radius:14px !important;
+}
+[data-testid="stChatInput"] textarea:focus {
+    border-color:#5a6385 !important;
+    box-shadow:0 0 0 1px #5a6385 !important;
+}
+[data-testid="stChatInput"] button {
+    background:#2d3347 !important;
+    border:1px solid #454d69 !important;
+    color:#d9dce8 !important;
+}
+[data-testid="stChatInput"] button:hover {
+    background:#3a4260 !important;
+}
 
 .result-card  { background:#1a1a24; border:1px solid #2a2a35;
                 border-radius:10px; padding:1.4rem 1.6rem; margin-bottom:1rem; }
