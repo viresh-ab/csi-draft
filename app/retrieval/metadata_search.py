@@ -16,6 +16,7 @@ BROWSE_ALL_PHRASES = (
 
 # Maps intent classifier filter keys → actual CSV column names
 FILTER_COLUMN_MAP = {
+    "file_name":   "file_name",
     "industry":    "industry",
     "geography":   "geography",
     "methodology": "methodology",
@@ -79,7 +80,31 @@ def _infer_filters_from_query(df: pd.DataFrame, user_query: str | None) -> dict:
                 inferred[col] = value
                 break
 
+    # If the user explicitly references a filename (or a long unique phrase),
+    # prioritize exact file-name retrieval.
+    if "file_name" in df.columns:
+        for file_name in df["file_name"].dropna().astype(str).tolist():
+            lowered = file_name.lower()
+            if lowered and lowered in query:
+                inferred["file_name"] = file_name
+                break
+
     return inferred
+
+
+def _build_match_series(df: pd.DataFrame, col: str, value: str) -> pd.Series:
+    """Column-aware matching for better precision on numeric fields."""
+    normalized = str(value).strip().lower()
+
+    if col in {"year", "sample_size"}:
+        numeric = pd.to_numeric(df[col], errors="coerce")
+        try:
+            target = float(normalized)
+            return numeric.eq(target).fillna(False)
+        except ValueError:
+            return df[col].astype(str).str.lower().str.contains(normalized, na=False, regex=False)
+
+    return df[col].astype(str).str.lower().str.contains(normalized, na=False, regex=False)
 
 
 def search_metadata(filters: dict, top_k: int = 3, user_query: str | None = None) -> list[dict]:
@@ -109,9 +134,7 @@ def search_metadata(filters: dict, top_k: int = 3, user_query: str | None = None
         col = FILTER_COLUMN_MAP.get(key, key)
         if value and col in df.columns:
             mapped_filters[col] = value
-            match = df[col].astype(str).str.lower().str.contains(
-                str(value).lower(), na=False, regex=False
-            )
+            match = _build_match_series(df, col, str(value))
             scores += match.astype(int)
 
     df["_score"] = scores

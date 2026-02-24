@@ -4,6 +4,7 @@ Calls Python functions directly (no HTTP) — works on Streamlit Cloud.
 """
 import sys
 import os
+from pathlib import Path
 import streamlit as st
 
 # ── Ensure the app/ package is importable ────────────────────────────────────
@@ -114,6 +115,8 @@ if "history" not in st.session_state:
     st.session_state.history = []
 if "query_text" not in st.session_state:
     st.session_state.query_text = ""
+if "chat_turns" not in st.session_state:
+    st.session_state.chat_turns = []
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -222,6 +225,7 @@ with main_col:
         elif not query.strip():
             st.warning("Please enter a query first.")
         else:
+            st.session_state.chat_turns.append({"role": "user", "query": query})
             classify_intent, search_metadata, load_from_file_path, generate_content = load_modules()
 
             if not classify_intent:
@@ -239,7 +243,14 @@ with main_col:
                         matches = search_metadata(filters, user_query=query)
 
                         if not matches:
-                            st.warning("No matching case studies found. Try broader terms.")
+                            st.session_state.chat_turns.append({
+                                "role": "assistant",
+                                "intent": intent,
+                                "content_format": content_format,
+                                "warning": "No matching case studies found. Try broader terms.",
+                                "matches": [],
+                                "generated": None,
+                            })
                         else:
                             top_match      = matches[0]
                             csv_file_path  = str(top_match.get("file_path", ""))
@@ -258,75 +269,109 @@ with main_col:
 
                             # Save history
                             st.session_state.history.append({"query": query, "intent": intent})
-
-                            st.markdown("---")
-
-                            # Intent badge
-                            if intent == "generate":
-                                st.markdown(
-                                    f'<div class="intent-generate">✦ Generate &nbsp;·&nbsp; {content_format or "Content"}</div>',
-                                    unsafe_allow_html=True
-                                )
-                            else:
-                                st.markdown(
-                                    '<div class="intent-retrieve">✦ Retrieve</div>',
-                                    unsafe_allow_html=True
-                                )
-
-                            # Matched case studies
-                            st.markdown('<div class="section-label">Matched Case Studies</div>', unsafe_allow_html=True)
-
-                            for match in matches:
-                                meta         = match
-                                study_name   = meta.get("study_type") or meta.get("file_name", "Untitled Study")
-                                industry     = meta.get("industry", "—")
-                                geography    = meta.get("geography", "")
-                                methodology  = meta.get("methodology", "")
-                                sample_size  = meta.get("sample_size", "")
-                                year         = meta.get("year", "")
-                                score        = float(meta.get("_rank_score", 0))
-                                summary      = meta.get("summary", "")
-
-                                geo_tag  = f'<span class="meta-tag">📍 {geography}</span>'  if geography and str(geography)  != "nan" else ""
-                                meth_tag = f'<span class="meta-tag">🔬 {methodology}</span>' if methodology and str(methodology)!= "nan" else ""
-                                size_tag = f'<span class="meta-tag">👥 n={sample_size}</span>' if sample_size and str(sample_size) not in ["", "nan"] else ""
-                                year_tag = f'<span class="meta-tag">📅 {int(float(year))}</span>' if year and str(year) != "nan" else ""
-
-                                st.markdown(f"""
-                                    <div class="result-card">
-                                        <div class="result-title">{study_name}</div>
-                                        <div>
-                                            <span class="meta-tag">🏭 {industry}</span>
-                                            {geo_tag}{meth_tag}{size_tag}{year_tag}
-                                            <span class="score-badge">score {score:.2f}</span>
-                                        </div>
-                                    </div>
-                                """, unsafe_allow_html=True)
-
-                                if summary and str(summary) not in ["", "nan"]:
-                                    with st.expander("View summary"):
-                                        st.markdown(
-                                            f"<div style='font-size:0.88rem;color:#a0a0b0;line-height:1.7;'>{summary}</div>",
-                                            unsafe_allow_html=True
-                                        )
-
-                            # Generated content
-                            if generated:
-                                st.markdown('<div class="section-label">Generated Content</div>', unsafe_allow_html=True)
-                                st.markdown(f'<div class="generated-box">{generated}</div>', unsafe_allow_html=True)
-                                st.markdown("")
-                                dl_col, _ = st.columns([1, 5])
-                                with dl_col:
-                                    st.download_button(
-                                        label="⬇ Download",
-                                        data=generated,
-                                        file_name=f"{(content_format or 'output').replace(' ', '_')}.txt",
-                                        mime="text/plain",
-                                        use_container_width=True
-                                    )
+                            st.session_state.chat_turns.append({
+                                "role": "assistant",
+                                "intent": intent,
+                                "content_format": content_format,
+                                "warning": None,
+                                "matches": matches,
+                                "generated": generated,
+                            })
 
                     except FileNotFoundError as e:
                         st.error(f"File not found: {e}")
                     except Exception as e:
                         st.error(f"Error: {e}")
                         st.exception(e)
+
+    # Chat-style transcript
+    st.markdown("---")
+    st.markdown('<div class="section-label">Conversation</div>', unsafe_allow_html=True)
+
+    for idx, turn in enumerate(st.session_state.chat_turns):
+        if turn.get("role") == "user":
+            with st.chat_message("user"):
+                st.markdown(turn.get("query", ""))
+            continue
+
+        with st.chat_message("assistant"):
+            intent = turn.get("intent", "retrieve")
+            content_format = turn.get("content_format")
+            matches = turn.get("matches", [])
+            generated = turn.get("generated")
+            warning = turn.get("warning")
+
+            if intent == "generate":
+                st.markdown(
+                    f'<div class="intent-generate">✦ Generate &nbsp;·&nbsp; {content_format or "Content"}</div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown('<div class="intent-retrieve">✦ Retrieve</div>', unsafe_allow_html=True)
+
+            if warning:
+                st.warning(warning)
+                continue
+
+            st.markdown('<div class="section-label">Matched Case Studies</div>', unsafe_allow_html=True)
+
+            for m_idx, match in enumerate(matches):
+                meta = match
+                file_name = str(meta.get("file_name", "Untitled Study"))
+                industry = meta.get("industry", "—")
+                geography = meta.get("geography", "")
+                methodology = meta.get("methodology", "")
+                sample_size = meta.get("sample_size", "")
+                year = meta.get("year", "")
+                score = float(meta.get("_rank_score", 0))
+                summary = meta.get("summary", "")
+                file_path = str(meta.get("file_path", ""))
+
+                geo_tag = f'<span class="meta-tag">📍 {geography}</span>' if geography and str(geography) != "nan" else ""
+                meth_tag = f'<span class="meta-tag">🔬 {methodology}</span>' if methodology and str(methodology) != "nan" else ""
+                size_tag = f'<span class="meta-tag">👥 n={sample_size}</span>' if sample_size and str(sample_size) not in ["", "nan"] else ""
+                year_tag = f'<span class="meta-tag">📅 {int(float(year))}</span>' if year and str(year) != "nan" else ""
+
+                st.markdown(f"""
+                    <div class="result-card">
+                        <div class="result-title">{file_name}</div>
+                        <div>
+                            <span class="meta-tag">🏭 {industry}</span>
+                            {geo_tag}{meth_tag}{size_tag}{year_tag}
+                            <span class="score-badge">score {score:.2f}</span>
+                        </div>
+                        <div class="file-path">{file_path}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+                if file_path and file_path != "nan":
+                    candidate_path = Path(file_path)
+                    if not candidate_path.is_absolute():
+                        candidate_path = Path.cwd() / candidate_path
+                    if candidate_path.exists():
+                        with open(candidate_path, "rb") as fh:
+                            st.download_button(
+                                label=f"⬇ Download file: {file_name}",
+                                data=fh.read(),
+                                file_name=file_name,
+                                mime="application/octet-stream",
+                                key=f"download_{idx}_{m_idx}",
+                            )
+
+                if summary and str(summary) not in ["", "nan"]:
+                    with st.expander("View summary"):
+                        st.markdown(
+                            f"<div style='font-size:0.88rem;color:#a0a0b0;line-height:1.7;'>{summary}</div>",
+                            unsafe_allow_html=True,
+                        )
+
+            if generated:
+                st.markdown('<div class="section-label">Generated Content</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="generated-box">{generated}</div>', unsafe_allow_html=True)
+                st.download_button(
+                    label="⬇ Download generated text",
+                    data=generated,
+                    file_name=f"{(content_format or 'output').replace(' ', '_')}.txt",
+                    mime="text/plain",
+                    key=f"generated_{idx}",
+                )
