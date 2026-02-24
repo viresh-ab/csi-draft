@@ -24,7 +24,7 @@ async def handle_query(request: QueryRequest):
     filters = intent_data.get("filters", {})
 
     # Step 2: Search + rank metadata CSV
-    matches = search_metadata(filters)
+    matches = search_metadata(filters, user_query=query)
     if not matches:
         raise HTTPException(
             status_code=404,

@@ -86,8 +86,13 @@ div[data-testid="stExpander"] { background:#1a1a24 !important;
 # ── Load API key from Streamlit secrets or environment ────────────────────────
 def get_openai_key() -> str:
     # Streamlit Cloud: set in App Settings → Secrets as OPENAI_API_KEY = "sk-..."
-    if hasattr(st, "secrets") and "OPENAI_API_KEY" in st.secrets:
-        return st.secrets["OPENAI_API_KEY"]
+    if hasattr(st, "secrets"):
+        try:
+            if "OPENAI_API_KEY" in st.secrets:
+                return st.secrets["OPENAI_API_KEY"]
+        except Exception:
+            # In local/dev environments secrets.toml may not exist.
+            pass
     return os.environ.get("OPENAI_API_KEY", "")
 
 # ── Lazy-import backend modules (after path is set) ───────────────────────────
@@ -231,7 +236,7 @@ with main_col:
                         filters        = intent_data.get("filters", {})
 
                         # Step 2: Retrieve from metadata
-                        matches = search_metadata(filters)
+                        matches = search_metadata(filters, user_query=query)
 
                         if not matches:
                             st.warning("No matching case studies found. Try broader terms.")

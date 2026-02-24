@@ -67,6 +67,13 @@ def test_search_no_filters_returns_empty(mock_load):
 
 
 @patch("app.retrieval.metadata_search.load_metadata", return_value=MOCK_CSV_DATA)
+def test_search_browse_all_query_returns_top_k(mock_load):
+    results = search_metadata({}, top_k=2, user_query="List all case studies")
+    assert len(results) == 2
+    assert all("_rank_score" not in r for r in results)
+
+
+@patch("app.retrieval.metadata_search.load_metadata", return_value=MOCK_CSV_DATA)
 def test_search_returns_top_k(mock_load):
     results = search_metadata({"year": "2023"}, top_k=2)
     assert len(results) <= 2

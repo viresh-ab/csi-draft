@@ -2,6 +2,15 @@ import pandas as pd
 from app.core.config import METADATA_PATH
 from app.retrieval.ranker import rank_candidates
 
+
+BROWSE_ALL_PHRASES = (
+    "all case studies",
+    "list case studies",
+    "list all",
+    "show all",
+    "all studies",
+)
+
 # Maps intent classifier filter keys → actual CSV column names
 FILTER_COLUMN_MAP = {
     "industry":    "industry",
@@ -24,7 +33,19 @@ def load_metadata() -> pd.DataFrame:
     return df
 
 
-def search_metadata(filters: dict, top_k: int = 3) -> list[dict]:
+def _is_browse_all_query(user_query: str | None) -> bool:
+    """Heuristic to allow broad retrieval requests like 'list all case studies'."""
+    if not user_query:
+        return False
+
+    query = str(user_query).lower().strip()
+    if "case stud" not in query and "studies" not in query:
+        return False
+
+    return any(phrase in query for phrase in BROWSE_ALL_PHRASES)
+
+
+def search_metadata(filters: dict, top_k: int = 3, user_query: str | None = None) -> list[dict]:
     """
     Retrieves and ranks case study candidates from the CSV.
 
@@ -34,8 +55,10 @@ def search_metadata(filters: dict, top_k: int = 3) -> list[dict]:
     df = load_metadata()
     filters = filters or {}
 
-    # Avoid returning arbitrary files when we couldn't infer any filters.
+    # For no-filter queries, only return results for explicit browse-all intents.
     if not filters:
+        if _is_browse_all_query(user_query):
+            return df.head(top_k).to_dict(orient="records")
         return []
 
     scores = pd.Series([0] * len(df), dtype=int)
