@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+openai
+pandas
+pdfplumber
+python-docx
+python-pptx
+pydantic-settings
+python-dotenv
+streamlit
+openpyxl
