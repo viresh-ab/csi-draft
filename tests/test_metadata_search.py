@@ -17,7 +17,8 @@ MOCK_CSV_DATA = pd.DataFrame([
         "methodology": "Survey",
         "tags": "lending, retail banking",
         "client_category": "Fortune 500",
-        "year": 2023
+        "year": 2023,
+        "sample_size": 1200
     },
     {
         "industry": "Healthcare",
@@ -26,7 +27,8 @@ MOCK_CSV_DATA = pd.DataFrame([
         "methodology": "Ethnography",
         "tags": "patient experience, hospital",
         "client_category": "Enterprise",
-        "year": 2022
+        "year": 2022,
+        "sample_size": 300
     },
     {
         "industry": "Retail",
@@ -35,7 +37,8 @@ MOCK_CSV_DATA = pd.DataFrame([
         "methodology": "Focus Groups",
         "tags": "retail, shopper behavior",
         "client_category": "SMB",
-        "year": 2023
+        "year": 2023,
+        "sample_size": 1200
     },
 ])
 
@@ -91,3 +94,17 @@ def test_results_have_rank_score(mock_load):
     results = search_metadata({"industry": "Healthcare"})
     for r in results:
         assert "_rank_score" in r
+
+
+@patch("app.retrieval.metadata_search.load_metadata", return_value=MOCK_CSV_DATA)
+def test_search_sample_size_minimum_filter(mock_load):
+    results = search_metadata({"sample_size": ">500"})
+    assert len(results) >= 1
+    assert all(r["sample_size"] > 500 for r in results)
+
+
+@patch("app.retrieval.metadata_search.load_metadata", return_value=MOCK_CSV_DATA)
+def test_search_high_sample_size_query(mock_load):
+    results = search_metadata({}, user_query="Show studies with higher sample size")
+    assert len(results) >= 1
+    assert all(r["sample_size"] >= 300 for r in results)
