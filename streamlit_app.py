@@ -31,7 +31,6 @@ section[data-testid="stSidebar"] { background-color: #16161d; border-right: 1px 
 [data-testid="stToolbar"] { right: 1rem; }
 [data-testid="stAppViewBlockContainer"] { padding-bottom: 7rem; }
 [data-testid="stBottomBlockContainer"] {
-    background: #0f0f13 !important;
     border-top: 1px solid #272a38;
     padding-top: 0.65rem;
 }
