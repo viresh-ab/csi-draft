@@ -15,8 +15,8 @@ MOCK_CSV_DATA = pd.DataFrame([
         "file_name": "hdfc_loan_study.pdf",
         "geography": "Mumbai",
         "methodology": "Survey",
-        "keywords": "lending, retail banking",
-        "client_type": "Fortune 500",
+        "tags": "lending, retail banking",
+        "client_category": "Fortune 500",
         "year": 2023
     },
     {
@@ -24,8 +24,8 @@ MOCK_CSV_DATA = pd.DataFrame([
         "file_name": "apollo_patient_journey.pdf",
         "geography": "Chennai",
         "methodology": "Ethnography",
-        "keywords": "patient experience, hospital",
-        "client_type": "Enterprise",
+        "tags": "patient experience, hospital",
+        "client_category": "Enterprise",
         "year": 2022
     },
     {
@@ -33,8 +33,8 @@ MOCK_CSV_DATA = pd.DataFrame([
         "file_name": "dmart_shopper_study.pdf",
         "geography": "Pune",
         "methodology": "Focus Groups",
-        "keywords": "retail, shopper behavior",
-        "client_type": "SMB",
+        "tags": "retail, shopper behavior",
+        "client_category": "SMB",
         "year": 2023
     },
 ])
@@ -57,8 +57,13 @@ def test_search_by_geography(mock_load):
 @patch("app.retrieval.metadata_search.load_metadata", return_value=MOCK_CSV_DATA)
 def test_search_no_match_returns_fallback(mock_load):
     results = search_metadata({"industry": "NonExistentIndustry"})
-    # Fallback should return results rather than empty
-    assert isinstance(results, list)
+    assert results == []
+
+
+@patch("app.retrieval.metadata_search.load_metadata", return_value=MOCK_CSV_DATA)
+def test_search_no_filters_returns_empty(mock_load):
+    results = search_metadata({})
+    assert results == []
 
 
 @patch("app.retrieval.metadata_search.load_metadata", return_value=MOCK_CSV_DATA)

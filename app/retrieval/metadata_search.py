@@ -32,6 +32,12 @@ def search_metadata(filters: dict, top_k: int = 3) -> list[dict]:
     scores each row, then passes to ranker for weighted re-ranking.
     """
     df = load_metadata()
+    filters = filters or {}
+
+    # Avoid returning arbitrary files when we couldn't infer any filters.
+    if not filters:
+        return []
+
     scores = pd.Series([0] * len(df), dtype=int)
 
     # Remap filter keys to actual CSV columns before searching
@@ -48,8 +54,8 @@ def search_metadata(filters: dict, top_k: int = 3) -> list[dict]:
     df["_score"] = scores
     candidates = df[df["_score"] > 0].to_dict(orient="records")
 
-    # Fallback: return top rows if nothing matched
+    # No metadata match for requested filters.
     if not candidates:
-        candidates = df.head(10).to_dict(orient="records")
+        return []
 
     return rank_candidates(candidates, mapped_filters, top_k=top_k)
